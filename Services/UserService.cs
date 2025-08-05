@@ -84,5 +84,20 @@ namespace AGROPURE.Services
             await _context.SaveChangesAsync();
             return true;
         }
+        
+        public async Task<UserDto> ToggleUserStatusAsync(int userId)
+        {
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+            {
+                throw new KeyNotFoundException("Usuario no encontrado");
+            }
+
+            user.IsActive = !user.IsActive;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            return _mapper.Map<UserDto>(user);
+        }
     }
 }

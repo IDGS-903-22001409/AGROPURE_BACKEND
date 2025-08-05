@@ -8,10 +8,13 @@ namespace AGROPURE.Helpers
     {
         public AutoMapperProfile()
         {
-            // User mappings
-            CreateMap<User, UserDto>();
+            // User mappings - CORREGIDO
+            CreateMap<User, UserDto>()
+                .ForMember(dest => dest.Role, opt => opt.MapFrom(src => src.Role.ToString())); // CONVIERTE ENUM A STRING
+
             CreateMap<RegisterDto, User>()
                 .ForMember(dest => dest.PasswordHash, opt => opt.MapFrom(src => PasswordHelper.HashPassword(src.Password)));
+
             CreateMap<UpdateUserDto, User>()
                 .ForAllMembers(opts => opts.Condition((src, dest, srcMember) => srcMember != null));
 
@@ -40,14 +43,24 @@ namespace AGROPURE.Helpers
 
             // Review mappings
             CreateMap<Review, ReviewDto>()
-                .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => $"{src.User.FirstName} {src.User.LastName}"));
+                .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => $"{src.User.FirstName} {src.User.LastName}"))
+                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : null));
 
             // Material mappings
             CreateMap<Material, MaterialDto>()
                 .ForMember(dest => dest.SupplierName, opt => opt.MapFrom(src => src.Supplier.Name));
+            CreateMap<CreateMaterialDto, Material>();
 
             // Supplier mappings
             CreateMap<Supplier, SupplierDto>();
+            CreateMap<CreateSupplierDto, Supplier>();
+
+            // Sale mappings
+            CreateMap<Sale, SaleDto>()
+                .ForMember(dest => dest.CustomerName, opt => opt.MapFrom(src => $"{src.User.FirstName} {src.User.LastName}"))
+                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product.Name))
+                .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()));
+            CreateMap<CreateSaleDto, Sale>();
         }
     }
 }

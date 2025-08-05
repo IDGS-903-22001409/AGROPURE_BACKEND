@@ -20,6 +20,12 @@ namespace AGROPURE.Controllers
         {
             try
             {
+                // Validar modelo
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(new { message = "Datos de login inválidos", errors = ModelState });
+                }
+
                 var result = await _authService.LoginAsync(loginDto);
                 if (result == null)
                 {
@@ -35,12 +41,47 @@ namespace AGROPURE.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<ActionResult<UserDto>> Register([FromBody] RegisterDto registerDto)
+        public async Task<ActionResult<LoginResponseDto>> Register([FromBody] RegisterDto registerDto)
         {
             try
             {
+
+                Console.WriteLine($"=== REGISTER DEBUG ===");
+                Console.WriteLine($"Email: {registerDto?.Email}");
+                Console.WriteLine($"FirstName: {registerDto?.FirstName}");
+                Console.WriteLine($"LastName: {registerDto?.LastName}");
+                Console.WriteLine($"Password length: {registerDto?.Password?.Length}");
+                Console.WriteLine($"ConfirmPassword length: {registerDto?.ConfirmPassword?.Length}");
+                Console.WriteLine($"ModelState.IsValid: {ModelState.IsValid}");
+
+                // Validar modelo
+                if (!ModelState.IsValid)
+                {
+                    var errors = ModelState
+                        .Where(x => x.Value.Errors.Count > 0)
+                        .Select(x => new { field = x.Key, errors = x.Value.Errors.Select(e => e.ErrorMessage) })
+                        .ToArray();
+
+                    return BadRequest(new { message = "Datos de registro inválidos", errors });
+                }
+
+                // Verificar que las contraseñas coincidan
+                if (registerDto.Password != registerDto.ConfirmPassword)
+                {
+                    return BadRequest(new { message = "Las contraseñas no coinciden" });
+                }
+
                 var user = await _authService.RegisterAsync(registerDto);
-                return CreatedAtAction(nameof(Register), new { id = user.Id }, user);
+
+                // Hacer login automático después del registro
+                var loginDto = new LoginDto
+                {
+                    Email = registerDto.Email,
+                    Password = registerDto.Password
+                };
+
+                var loginResult = await _authService.LoginAsync(loginDto);
+                return Ok(loginResult);
             }
             catch (InvalidOperationException ex)
             {

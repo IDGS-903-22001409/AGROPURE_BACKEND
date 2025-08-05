@@ -21,6 +21,27 @@ namespace AGROPURE.Controllers
             _context = context;
             _mapper = mapper;
         }
+        
+        [HttpGet]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<List<ReviewDto>>> GetAllReviews()
+        {
+            try
+            {
+                var reviews = await _context.Reviews
+                    .Include(r => r.User)
+                    .Include(r => r.Product)
+                    .OrderByDescending(r => r.CreatedAt)
+                    .ToListAsync();
+
+                var reviewDtos = _mapper.Map<List<ReviewDto>>(reviews);
+                return Ok(reviewDtos);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
 
         [HttpGet("product/{productId}")]
         public async Task<ActionResult<List<ReviewDto>>> GetProductReviews(int productId)

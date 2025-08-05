@@ -1,5 +1,4 @@
-﻿using AGROPURE.Models.Enums;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace AGROPURE.Models.DTOs
 {
@@ -12,7 +11,7 @@ namespace AGROPURE.Models.DTOs
         public string? Phone { get; set; }
         public string? Company { get; set; }
         public string? Address { get; set; }
-        public UserRole Role { get; set; }
+        public string Role { get; set; } = string.Empty;
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
 

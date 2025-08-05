@@ -92,6 +92,25 @@ namespace AGROPURE.Controllers
         {
             try
             {
+
+                // DEBUG: Ver qué datos llegan
+                Console.WriteLine($"=== QUOTE DEBUG ===");
+                Console.WriteLine($"ProductId: {createDto?.ProductId}");
+                Console.WriteLine($"Quantity: {createDto?.Quantity}");
+                Console.WriteLine($"CustomerNotes: {createDto?.Notes}");
+                Console.WriteLine($"ModelState.IsValid: {ModelState.IsValid}");
+
+                // Validar modelo
+                if (!ModelState.IsValid)
+                {
+                    var errors = ModelState
+                        .Where(x => x.Value.Errors.Count > 0)
+                        .Select(x => new { field = x.Key, errors = x.Value.Errors.Select(e => e.ErrorMessage) })
+                        .ToArray();
+
+                    return BadRequest(new { message = "Datos de cotización inválidos", errors });
+                }
+
                 var userId = JwtHelper.GetUserIdFromToken(User);
                 var quote = await _quoteService.CreateQuoteAsync(createDto, userId);
 
@@ -103,7 +122,7 @@ namespace AGROPURE.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new { message = ex.Message, details = ex.InnerException?.Message });
             }
         }
 
@@ -113,6 +132,11 @@ namespace AGROPURE.Controllers
         {
             try
             {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(new { message = "Datos de actualización inválidos", errors = ModelState });
+                }
+
                 var adminUserId = JwtHelper.GetUserIdFromToken(User);
                 var quote = await _quoteService.UpdateQuoteStatusAsync(id, updateDto, adminUserId);
 

@@ -12,6 +12,7 @@ namespace AGROPURE.Models.DTOs
         public bool IsApproved { get; set; }
         public DateTime CreatedAt { get; set; }
         public string UserName { get; set; } = string.Empty;
+        public string? ProductName { get; set; } // NUEVO: Para mostrar en reviews admin
     }
 
     public class CreateReviewDto
@@ -34,6 +35,7 @@ namespace AGROPURE.Models.DTOs
         public string? Description { get; set; }
         public decimal UnitCost { get; set; }
         public string Unit { get; set; } = string.Empty;
+        public int SupplierId { get; set; } // NUEVO: Para formularios
         public string SupplierName { get; set; } = string.Empty;
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }

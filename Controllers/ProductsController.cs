@@ -2,6 +2,7 @@
 using AGROPURE.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 
 namespace AGROPURE.Controllers
 {
@@ -10,10 +11,12 @@ namespace AGROPURE.Controllers
     public class ProductsController : ControllerBase
     {
         private readonly ProductService _productService;
+        private readonly CostingService _costingService;
 
-        public ProductsController(ProductService productService)
+        public ProductsController(ProductService productService, CostingService costingService)
         {
             _productService = productService;
+            _costingService = costingService;
         }
 
         [HttpGet]
@@ -102,5 +105,53 @@ namespace AGROPURE.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+
+        // NUEVO: Método para calcular precios con descuentos
+        [HttpPost("calculate-price")]
+        public async Task<ActionResult<PriceCalculationDto>> CalculatePrice([FromBody] CalculatePriceDto request)
+        {
+            try
+            {
+                var calculation = await _costingService.CalculateProductCostAsync(request.ProductId, request.Quantity);
+
+                var baseTotal = calculation.UnitPrice * request.Quantity;
+                var discount = baseTotal - calculation.TotalCost;
+
+                var response = new PriceCalculationDto
+                {
+                    UnitPrice = calculation.UnitPrice,
+                    TotalCost = calculation.TotalCost,
+                    Discount = discount,
+                    VolumeDiscountPercentage = calculation.VolumeDiscount
+                };
+
+                return Ok(response);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+    }    
+    public class CalculatePriceDto
+    {
+        [Required]
+        public int ProductId { get; set; }
+
+        [Required]
+        [Range(1, int.MaxValue)]
+        public int Quantity { get; set; }
+    }
+
+    public class PriceCalculationDto
+    {
+        public decimal UnitPrice { get; set; }
+        public decimal TotalCost { get; set; }
+        public decimal Discount { get; set; }
+        public decimal VolumeDiscountPercentage { get; set; }
     }
 }

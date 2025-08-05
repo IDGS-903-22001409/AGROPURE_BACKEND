@@ -109,6 +109,25 @@ namespace AGROPURE.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+        
+        [HttpPut("profile")]
+        public async Task<ActionResult<UserDto>> UpdateCurrentUserProfile([FromBody] UpdateUserDto updateDto)
+        {
+            try
+            {
+                var currentUserId = JwtHelper.GetUserIdFromToken(User);
+                var user = await _userService.UpdateUserAsync(currentUserId, updateDto);
+                return Ok(user);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
 
         [HttpPost("{id}/change-password")]
         public async Task<ActionResult> ChangePassword(int id, [FromBody] ChangePasswordDto changePasswordDto)
@@ -129,6 +148,25 @@ namespace AGROPURE.Controllers
                 }
 
                 return Ok(new { message = "Contraseña actualizada correctamente" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+        
+        [HttpPut("{id}/toggle-status")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<UserDto>> ToggleUserStatus(int id)
+        {
+            try
+            {
+                var user = await _userService.ToggleUserStatusAsync(id);
+                return Ok(user);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
             }
             catch (Exception ex)
             {

@@ -42,6 +42,7 @@ namespace AGROPURE.Controllers
                         Id = q.Id,
                         CustomerName = q.CustomerName,
                         ProductName = q.Product.Name,
+                        Quantity = q.Quantity,
                         TotalCost = q.TotalCost,
                         Status = q.Status.ToString(),
                         RequestDate = q.RequestDate
@@ -59,6 +60,21 @@ namespace AGROPURE.Controllers
                     })
                     .OrderBy(s => s.Month)
                     .ToListAsync();
+                
+                var topProducts = await _context.Quotes
+                    .Include(q => q.Product)
+                    .Where(q => q.RequestDate >= DateTime.Now.AddDays(-90)) // Últimos 3 meses
+                    .GroupBy(q => new { q.ProductId, q.Product.Name })
+                    .Select(g => new ProductStatDto
+                    {
+                        ProductName = g.Key.Name,
+                        QuotesCount = g.Count(),
+                        TotalRevenue = g.Where(q => q.Status == QuoteStatus.Approved || q.Status == QuoteStatus.Completed)
+                                      .Sum(q => q.TotalCost)
+                    })
+                    .OrderByDescending(p => p.QuotesCount)
+                    .Take(5)
+                    .ToListAsync();
 
                 return Ok(new DashboardStatsDto
                 {
@@ -69,7 +85,8 @@ namespace AGROPURE.Controllers
                     TotalSales = totalSales,
                     MonthlyRevenue = monthlyRevenue,
                     RecentQuotes = recentQuotes,
-                    MonthlyQuoteStats = monthlyQuoteStats
+                    MonthlyQuoteStats = monthlyQuoteStats,
+                    TopProducts = topProducts
                 });
             }
             catch (Exception ex)
@@ -102,9 +119,35 @@ namespace AGROPURE.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
-    }
+        
+        [HttpGet("user-stats")]
+        public async Task<ActionResult<UserStatsDto>> GetUserStats()
+        {
+            try
+            {
+                var totalUsers = await _context.Users.CountAsync();
+                var activeUsers = await _context.Users.CountAsync(u => u.IsActive);
+                var adminUsers = await _context.Users.CountAsync(u => u.Role == UserRole.Admin);
+                var customerUsers = await _context.Users.CountAsync(u => u.Role == UserRole.Customer);
+                var newUsersThisMonth = await _context.Users
+                    .CountAsync(u => u.CreatedAt >= DateTime.Now.AddDays(-30));
 
-    // DTOs para Dashboard
+                return Ok(new UserStatsDto
+                {
+                    TotalUsers = totalUsers,
+                    ActiveUsers = activeUsers,
+                    AdminUsers = adminUsers,
+                    CustomerUsers = customerUsers,
+                    NewUsersThisMonth = newUsersThisMonth
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+    }
+    
     public class DashboardStatsDto
     {
         public int TotalUsers { get; set; }
@@ -115,6 +158,7 @@ namespace AGROPURE.Controllers
         public decimal MonthlyRevenue { get; set; }
         public List<RecentQuoteDto> RecentQuotes { get; set; } = new();
         public List<MonthlyStatDto> MonthlyQuoteStats { get; set; } = new();
+        public List<ProductStatDto> TopProducts { get; set; } = new(); // NUEVO
     }
 
     public class RecentQuoteDto
@@ -122,6 +166,7 @@ namespace AGROPURE.Controllers
         public int Id { get; set; }
         public string CustomerName { get; set; } = string.Empty;
         public string ProductName { get; set; } = string.Empty;
+        public int Quantity { get; set; } // NUEVO
         public decimal TotalCost { get; set; }
         public string Status { get; set; } = string.Empty;
         public DateTime RequestDate { get; set; }
@@ -132,5 +177,21 @@ namespace AGROPURE.Controllers
         public string Month { get; set; } = string.Empty;
         public int Count { get; set; }
         public decimal Value { get; set; }
+    }
+    
+    public class ProductStatDto
+    {
+        public string ProductName { get; set; } = string.Empty;
+        public int QuotesCount { get; set; }
+        public decimal TotalRevenue { get; set; }
+    }
+
+    public class UserStatsDto
+    {
+        public int TotalUsers { get; set; }
+        public int ActiveUsers { get; set; }
+        public int AdminUsers { get; set; }
+        public int CustomerUsers { get; set; }
+        public int NewUsersThisMonth { get; set; }
     }
 }
