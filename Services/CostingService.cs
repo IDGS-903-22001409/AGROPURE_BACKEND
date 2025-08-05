@@ -1,4 +1,5 @@
-﻿using AGROPURE.Data;
+﻿using Microsoft.EntityFrameworkCore;
+using AGROPURE.Data;
 
 namespace AGROPURE.Services
 {

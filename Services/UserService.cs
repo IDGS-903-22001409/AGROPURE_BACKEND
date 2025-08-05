@@ -1,4 +1,5 @@
-﻿using AGROPURE.Data;
+﻿using Microsoft.EntityFrameworkCore;
+using AGROPURE.Data;
 using AGROPURE.Helpers;
 using AGROPURE.Models.DTOs;
 using AutoMapper;

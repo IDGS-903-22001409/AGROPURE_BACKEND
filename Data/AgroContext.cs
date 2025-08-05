@@ -1,5 +1,5 @@
-﻿using AGROPURE.Models.Entities;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
+using AGROPURE.Models.Entities;
 
 namespace AGROPURE.Data
 {
@@ -49,7 +49,8 @@ namespace AGROPURE.Data
                 entity.Property(e => e.UnitCost).HasColumnType("decimal(18,2)");
                 entity.HasOne(e => e.Supplier)
                       .WithMany(s => s.Materials)
-                      .HasForeignKey(e => e.SupplierId);
+                      .HasForeignKey(e => e.SupplierId)
+                      .OnDelete(DeleteBehavior.Restrict); 
             });
 
             // ProductMaterial (BOM) configurations
@@ -59,10 +60,12 @@ namespace AGROPURE.Data
                 entity.Property(e => e.Quantity).HasColumnType("decimal(18,4)");
                 entity.HasOne(e => e.Product)
                       .WithMany(p => p.Materials)
-                      .HasForeignKey(e => e.ProductId);
+                      .HasForeignKey(e => e.ProductId)
+                      .OnDelete(DeleteBehavior.Cascade); 
                 entity.HasOne(e => e.Material)
                       .WithMany(m => m.ProductMaterials)
-                      .HasForeignKey(e => e.MaterialId);
+                      .HasForeignKey(e => e.MaterialId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // Quote configurations
@@ -73,10 +76,12 @@ namespace AGROPURE.Data
                 entity.Property(e => e.TotalCost).HasColumnType("decimal(18,2)");
                 entity.HasOne(e => e.User)
                       .WithMany(u => u.Quotes)
-                      .HasForeignKey(e => e.UserId);
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Restrict); 
                 entity.HasOne(e => e.Product)
                       .WithMany(p => p.Quotes)
-                      .HasForeignKey(e => e.ProductId);
+                      .HasForeignKey(e => e.ProductId)
+                      .OnDelete(DeleteBehavior.Restrict); 
             });
 
             // Sale configurations
@@ -87,17 +92,20 @@ namespace AGROPURE.Data
                 entity.Property(e => e.TotalAmount).HasColumnType("decimal(18,2)");
                 entity.HasOne(e => e.User)
                       .WithMany(u => u.Sales)
-                      .HasForeignKey(e => e.UserId);
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Restrict); // 🔥 CORREGIDO: Sin cascada
                 entity.HasOne(e => e.Product)
                       .WithMany()
-                      .HasForeignKey(e => e.ProductId);
+                      .HasForeignKey(e => e.ProductId)
+                      .OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(e => e.Quote)
                       .WithMany()
                       .HasForeignKey(e => e.QuoteId)
-                      .IsRequired(false);
+                      .IsRequired(false)
+                      .OnDelete(DeleteBehavior.SetNull); 
             });
 
-            // Purchase configurations
+            // Purchase configurations -
             modelBuilder.Entity<Purchase>(entity =>
             {
                 entity.HasKey(e => e.Id);
@@ -106,10 +114,12 @@ namespace AGROPURE.Data
                 entity.Property(e => e.TotalCost).HasColumnType("decimal(18,2)");
                 entity.HasOne(e => e.Supplier)
                       .WithMany(s => s.Purchases)
-                      .HasForeignKey(e => e.SupplierId);
+                      .HasForeignKey(e => e.SupplierId)
+                      .OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(e => e.Material)
                       .WithMany()
-                      .HasForeignKey(e => e.MaterialId);
+                      .HasForeignKey(e => e.MaterialId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // Review configurations
@@ -120,10 +130,12 @@ namespace AGROPURE.Data
                 entity.HasCheckConstraint("CK_Review_Rating", "[Rating] >= 1 AND [Rating] <= 5");
                 entity.HasOne(e => e.User)
                       .WithMany(u => u.Reviews)
-                      .HasForeignKey(e => e.UserId);
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Restrict); 
                 entity.HasOne(e => e.Product)
                       .WithMany(p => p.Reviews)
-                      .HasForeignKey(e => e.ProductId);
+                      .HasForeignKey(e => e.ProductId)
+                      .OnDelete(DeleteBehavior.Restrict); 
             });
 
             // Supplier configurations
