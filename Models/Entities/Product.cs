@@ -27,7 +27,7 @@ namespace AGROPURE.Models.Entities
         [MaxLength(50)]
         public string? Category { get; set; }
 
-        [MaxLength(100)]
+        [MaxLength(1000)]
         public string? TechnicalSpecs { get; set; }
 
         public bool IsActive { get; set; } = true;
@@ -38,5 +38,6 @@ namespace AGROPURE.Models.Entities
         public ICollection<ProductMaterial> Materials { get; set; } = new List<ProductMaterial>();
         public ICollection<Quote> Quotes { get; set; } = new List<Quote>();
         public ICollection<Review> Reviews { get; set; } = new List<Review>();
+        public ICollection<ProductFaq> Faqs { get; set; } = new List<ProductFaq>(); // NUEVO
     }
 }

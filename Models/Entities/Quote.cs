@@ -7,7 +7,7 @@ namespace AGROPURE.Models.Entities
     public class Quote
     {
         public int Id { get; set; }
-        public int UserId { get; set; }
+        public int? UserId { get; set; } // ACTUALIZADO: Nullable para cotizaciones públicas
         public int ProductId { get; set; }
 
         [Required]
@@ -23,6 +23,9 @@ namespace AGROPURE.Models.Entities
 
         [MaxLength(500)]
         public string? CustomerAddress { get; set; }
+
+        [MaxLength(200)]
+        public string? CustomerCompany { get; set; } // NUEVO
 
         public int Quantity { get; set; }
 
@@ -44,8 +47,10 @@ namespace AGROPURE.Models.Entities
         public DateTime? ResponseDate { get; set; }
         public DateTime? ExpiryDate { get; set; }
 
+        public bool IsPublicQuote { get; set; } = false; // NUEVO
+
         // Navigation properties
-        public User User { get; set; } = null!;
+        public User? User { get; set; } // ACTUALIZADO: Nullable
         public Product Product { get; set; } = null!;
     }
 }

@@ -139,7 +139,7 @@ namespace AGROPURE.Data
             context.Materials.AddRange(materials);
             context.SaveChanges();
 
-            // Crear productos
+            // Crear productos con imágenes
             var products = new List<Product>
             {
                 new Product
@@ -207,35 +207,169 @@ namespace AGROPURE.Data
 
             context.ProductMaterials.AddRange(productMaterials);
 
-            // Crear una cotización de ejemplo
-            var sampleQuote = new Quote
+            // Crear FAQs para productos
+            var productFaqs = new List<ProductFaq>
+            {
+                // FAQs para Sistema Básico
+                new ProductFaq
+                {
+                    ProductId = products[0].Id,
+                    Question = "¿Qué incluye el sistema básico?",
+                    Answer = "El sistema básico incluye sensores de pH y turbidez, microcontrolador ESP32 con WiFi, carcasa impermeable, y acceso a la aplicación móvil para monitoreo en tiempo real.",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                },
+                new ProductFaq
+                {
+                    ProductId = products[0].Id,
+                    Question = "¿Necesito conocimientos técnicos para instalarlo?",
+                    Answer = "No, el sistema está diseñado para instalación fácil. Incluye manual paso a paso y soporte técnico gratuito durante el primer mes.",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                },
+                new ProductFaq
+                {
+                    ProductId = products[0].Id,
+                    Question = "¿Funciona con cualquier tipo de riego?",
+                    Answer = "Sí, es compatible con sistemas de riego por goteo, aspersión y inundación. Se adapta a tuberías de 1/2\" a 2\".",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                },
+
+                // FAQs para Sistema Avanzado
+                new ProductFaq
+                {
+                    ProductId = products[1].Id,
+                    Question = "¿Cuál es la diferencia con el sistema básico?",
+                    Answer = "El sistema avanzado incluye tratamiento automático del agua, válvulas de control automático, sistema de filtración integrado, y monitoreo de múltiples parámetros adicionales.",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                },
+                new ProductFaq
+                {
+                    ProductId = products[1].Id,
+                    Question = "¿Requiere mantenimiento especial?",
+                    Answer = "Mantenimiento mínimo: limpieza de sensores cada 3 meses y cambio de filtros cada 6 meses. El sistema envía recordatorios automáticos.",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                },
+
+                // FAQs para Sensor Individual
+                new ProductFaq
+                {
+                    ProductId = products[2].Id,
+                    Question = "¿Puedo integrar este sensor con mi sistema actual?",
+                    Answer = "Sí, el sensor tiene salida digital estándar y es compatible con la mayoría de sistemas de automatización. Incluye documentación de integración.",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                }
+            };
+
+            context.ProductFaqs.AddRange(productFaqs);
+
+            // Crear una cotización pública de ejemplo
+            var samplePublicQuote = new Quote
+            {
+                UserId = null, // Cotización pública
+                ProductId = products[0].Id,
+                CustomerName = "María González",
+                CustomerEmail = "maria@granjaecologica.com",
+                CustomerPhone = "4779876543",
+                CustomerAddress = "Rancho La Esperanza, Silao, Guanajuato",
+                CustomerCompany = "Granja Ecológica La Esperanza",
+                Quantity = 3,
+                UnitPrice = 8075.00m, // Con descuento del 5% por 3+ unidades
+                TotalCost = 24225.00m,
+                Status = QuoteStatus.Pending,
+                Notes = "Solicito cotización para tres sistemas básicos para diferentes secciones de mi granja orgánica",
+                RequestDate = DateTime.UtcNow,
+                ExpiryDate = DateTime.UtcNow.AddDays(30),
+                IsPublicQuote = true
+            };
+
+            context.Quotes.Add(samplePublicQuote);
+
+            // Crear una cotización de usuario registrado
+            var sampleUserQuote = new Quote
             {
                 UserId = testCustomer.Id,
-                ProductId = products[0].Id,
+                ProductId = products[1].Id,
                 CustomerName = "Juan Pérez",
                 CustomerEmail = "juan@example.com",
                 CustomerPhone = "4771234567",
                 CustomerAddress = "Av. Principal 123, León, Guanajuato",
-                Quantity = 2,
-                UnitPrice = 8500.00m,
-                TotalCost = 17000.00m,
-                Status = QuoteStatus.Pending,
-                Notes = "Solicito cotización para dos sistemas básicos para mi granja",
-                RequestDate = DateTime.UtcNow,
-                ExpiryDate = DateTime.UtcNow.AddDays(30)
+                CustomerCompany = "Granja Los Pinos",
+                Quantity = 1,
+                UnitPrice = 15500.00m,
+                TotalCost = 15500.00m,
+                Status = QuoteStatus.Approved,
+                Notes = "Interesado en el sistema avanzado para automatizar completamente el riego",
+                RequestDate = DateTime.UtcNow.AddDays(-5),
+                ResponseDate = DateTime.UtcNow.AddDays(-2),
+                ExpiryDate = DateTime.UtcNow.AddDays(25),
+                IsPublicQuote = false
             };
 
-            context.Quotes.Add(sampleQuote);
+            context.Quotes.Add(sampleUserQuote);
 
-            // Crear review de ejemplo
-            var sampleReview = new Review
+            // Crear una venta de ejemplo
+            var sampleSale = new Sale
             {
                 UserId = testCustomer.Id,
                 ProductId = products[0].Id,
+                QuoteId = null,
+                OrderNumber = "ORD-20241201-1234",
+                Quantity = 1,
+                UnitPrice = 8500.00m,
+                TotalAmount = 8500.00m,
+                Status = OrderStatus.Delivered,
+                Notes = "Venta directa - cliente satisfecho",
+                SaleDate = DateTime.UtcNow.AddDays(-10),
+                DeliveryDate = DateTime.UtcNow.AddDays(-3)
+            };
+
+            context.Sales.Add(sampleSale);
+
+            // Crear compras de ejemplo
+            var samplePurchases = new List<Purchase>
+            {
+                new Purchase
+                {
+                    SupplierId = suppliers[0].Id,
+                    MaterialId = materials[0].Id,
+                    PurchaseNumber = "PUR-20241201-1001",
+                    Quantity = 50,
+                    UnitCost = 450.00m,
+                    TotalCost = 22500.00m,
+                    PurchaseDate = DateTime.UtcNow.AddDays(-15),
+                    DeliveryDate = DateTime.UtcNow.AddDays(-10),
+                    Notes = "Compra inicial de sensores pH"
+                },
+                new Purchase
+                {
+                    SupplierId = suppliers[1].Id,
+                    MaterialId = materials[2].Id,
+                    PurchaseNumber = "PUR-20241205-1002",
+                    Quantity = 100,
+                    UnitCost = 120.00m,
+                    TotalCost = 12000.00m,
+                    PurchaseDate = DateTime.UtcNow.AddDays(-12),
+                    DeliveryDate = DateTime.UtcNow.AddDays(-7),
+                    Notes = "Stock de microcontroladores ESP32"
+                }
+            };
+
+            context.Purchases.AddRange(samplePurchases);
+
+            // Crear review de ejemplo (solo para productos comprados)
+            var sampleReview = new Review
+            {
+                UserId = testCustomer.Id,
+                ProductId = products[0].Id, // Producto que compró
                 Rating = 5,
-                Comment = "Excelente sistema, muy fácil de instalar y usar. La aplicación móvil es muy intuitiva.",
+                Comment = "Excelente sistema, muy fácil de instalar y usar. La aplicación móvil es muy intuitiva y me ha ayudado a optimizar el riego de mis cultivos.",
                 IsApproved = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow.AddDays(-5)
             };
 
             context.Reviews.Add(sampleReview);

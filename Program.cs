@@ -1,116 +1,70 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
 using System.Text;
 using AGROPURE.Data;
+using AGROPURE.Services;
 using AGROPURE.Helpers;
 using AGROPURE.Middleware;
-using AGROPURE.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
 
-// Swagger con JWT
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "AGROPURE API",
-        Version = "v1",
-        Description = "API para Sistema de Monitoreo de Agua IoT",
-        Contact = new OpenApiContact
-        {
-            Name = "AGROPURE Team",
-            Email = "info@agropure.com"
-        }
-    });
-
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
-    });
-
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            new string[] {}
-        }
-    });
-});
-
-// Database
+// Entity Framework
 builder.Services.AddDbContext<AgroContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-// Services - registrar todos los servicios
-builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<UserService>();
-builder.Services.AddScoped<ProductService>();
-builder.Services.AddScoped<QuoteService>();
-builder.Services.AddScoped<SupplierService>();
-builder.Services.AddScoped<SaleService>();
-builder.Services.AddScoped<CostingService>();
-builder.Services.AddScoped<EmailService>();
 
 // AutoMapper
 builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 
-// JWT Authentication
-var jwtKey = builder.Configuration["JwtSettings:Secret"];
-if (string.IsNullOrEmpty(jwtKey))
-{
-    throw new InvalidOperationException("JWT Secret key is not configured");
-}
+// Authentication & JWT
+var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+var secretKey = jwtSettings["Secret"];
 
-var key = Encoding.ASCII.GetBytes(jwtKey);
-
-builder.Services.AddAuthentication(x =>
+builder.Services.AddAuthentication(options =>
 {
-    x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
-.AddJwtBearer(x =>
+.AddJwtBearer(options =>
 {
-    x.RequireHttpsMetadata = false;
-    x.SaveToken = true;
-    x.TokenValidationParameters = new TokenValidationParameters
+    options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(key),
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(secretKey)),
         ValidateIssuer = false,
         ValidateAudience = false,
-        ClockSkew = TimeSpan.Zero,
-        ValidateLifetime = true
+        ClockSkew = TimeSpan.Zero
     };
 });
 
-// CORS - configuración más permisiva para desarrollo
+// Services
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<ProductService>();
+builder.Services.AddScoped<QuoteService>();
+builder.Services.AddScoped<SaleService>();
+builder.Services.AddScoped<CostingService>();
+builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<ReviewService>();
+
+// CORS
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAngular", policy =>
+    options.AddPolicy("AllowAngularApp", policy =>
     {
         policy.WithOrigins("http://localhost:4200", "https://localhost:4200")
-              .AllowAnyHeader()
               .AllowAnyMethod()
+              .AllowAnyHeader()
               .AllowCredentials();
     });
 });
+
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
@@ -118,67 +72,31 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "AGROPURE API v1");
-        c.RoutePrefix = "swagger";
-    });
+    app.UseSwaggerUI();
 }
 
-// Middlewares en orden correcto
+// Initialize Database
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<AgroContext>();
+
+    // Ensure database is created
+    context.Database.EnsureCreated();
+
+    // Initialize with sample data
+    DbInitializer.Initialize(context);
+}
+
 app.UseHttpsRedirection();
 
-// CORS antes de autenticación
-app.UseCors("AllowAngular");
+app.UseCors("AllowAngularApp");
 
-// Middleware personalizado
+// Custom Error Handling Middleware
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
-// Autenticación y autorización
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Mapear controladores
 app.MapControllers();
-
-// Health check endpoint
-app.MapGet("/health", () => Results.Ok(new
-{
-    status = "healthy",
-    timestamp = DateTime.UtcNow,
-    version = "1.0.0"
-}));
-
-// Initialize database
-using (var scope = app.Services.CreateScope())
-{
-    try
-    {
-        var context = scope.ServiceProvider.GetRequiredService<AgroContext>();
-
-        // Asegurar que la base de datos existe
-        context.Database.EnsureCreated();
-
-        // Aplicar migraciones pendientes si las hay
-        if (context.Database.GetPendingMigrations().Any())
-        {
-            context.Database.Migrate();
-        }
-
-        // Inicializar datos
-        DbInitializer.Initialize(context);
-
-        Console.WriteLine("Database initialized successfully");
-    }
-    catch (Exception ex)
-    {
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while initializing the database");
-        throw;
-    }
-}
-
-Console.WriteLine($"AGROPURE API is running on {app.Environment.EnvironmentName} environment");
-Console.WriteLine($"Swagger UI available at: /swagger");
 
 app.Run();

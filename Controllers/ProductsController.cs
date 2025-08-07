@@ -2,6 +2,7 @@
 using AGROPURE.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 
 namespace AGROPURE.Controllers
@@ -17,6 +18,75 @@ namespace AGROPURE.Controllers
         {
             _productService = productService;
             _costingService = costingService;
+        }
+
+        [HttpPost("{id}/faqs")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<ProductFaqDto>> AddProductFaq(int id, [FromBody] CreateProductFaqDto createDto)
+        {
+            try
+            {
+                var product = await _context.Products.FindAsync(id);
+                if (product == null || !product.IsActive)
+                {
+                    return NotFound(new { message = "Producto no encontrado" });
+                }
+
+                var faq = new ProductFaq
+                {
+                    ProductId = id,
+                    Question = createDto.Question,
+                    Answer = createDto.Answer,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.ProductFaqs.Add(faq);
+                await _context.SaveChangesAsync();
+
+                var faqDto = new ProductFaqDto
+                {
+                    Id = faq.Id,
+                    ProductId = faq.ProductId,
+                    Question = faq.Question,
+                    Answer = faq.Answer,
+                    IsActive = faq.IsActive,
+                    CreatedAt = faq.CreatedAt
+                };
+
+                return CreatedAtAction(nameof(GetProduct), new { id = faq.Id }, faqDto);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpGet("{id}/faqs")]
+        public async Task<ActionResult<List<ProductFaqDto>>> GetProductFaqs(int id)
+        {
+            try
+            {
+                var faqs = await _context.ProductFaqs
+                    .Where(f => f.ProductId == id && f.IsActive)
+                    .OrderBy(f => f.CreatedAt)
+                    .Select(f => new ProductFaqDto
+                    {
+                        Id = f.Id,
+                        ProductId = f.ProductId,
+                        Question = f.Question,
+                        Answer = f.Answer,
+                        IsActive = f.IsActive,
+                        CreatedAt = f.CreatedAt
+                    })
+                    .ToListAsync();
+
+                return Ok(faqs);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpGet]

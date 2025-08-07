@@ -1,4 +1,5 @@
 ﻿using AGROPURE.Models.Enums;
+using AGROPURE.Models.DTOs;
 using System.Net.Mail;
 using System.Net;
 
@@ -11,6 +12,30 @@ namespace AGROPURE.Services
         public EmailService(IConfiguration configuration)
         {
             _configuration = configuration;
+        }
+
+        public async Task SendQuoteNotificationToAdminAsync(QuoteDto quote)
+        {
+            var adminEmail = _configuration["EmailSettings:AdminEmail"] ?? "admin@agropure.com";
+            var subject = $"Nueva Cotización #{quote.Id} - AGROPURE";
+            var body = $@"
+                <h2>Nueva Solicitud de Cotización</h2>
+                <p><strong>ID:</strong> #{quote.Id}</p>
+                <p><strong>Cliente:</strong> {quote.CustomerName}</p>
+                <p><strong>Email:</strong> {quote.CustomerEmail}</p>
+                <p><strong>Teléfono:</strong> {quote.CustomerPhone}</p>
+                <p><strong>Empresa:</strong> {quote.CustomerCompany}</p>
+                <p><strong>Producto:</strong> {quote.ProductName}</p>
+                <p><strong>Cantidad:</strong> {quote.Quantity}</p>
+                <p><strong>Total:</strong> ${quote.TotalCost:F2}</p>
+                <p><strong>Notas:</strong> {quote.Notes}</p>
+                <p><strong>Fecha:</strong> {quote.RequestDate:dd/MM/yyyy HH:mm}</p>
+                <br>
+                <p>Ingresa al panel de administración para gestionar esta cotización.</p>
+                <p><a href='https://localhost:4200/admin/quotes'>Ver Cotizaciones</a></p>
+            ";
+
+            await SendEmailAsync(adminEmail, subject, body);
         }
 
         public async Task SendQuoteRequestNotificationAsync(string customerEmail, int quoteId)
@@ -57,10 +82,20 @@ namespace AGROPURE.Services
             var subject = "Bienvenido a AGROPURE";
             var body = $@"
                 <h2>¡Bienvenido a AGROPURE, {fullName}!</h2>
-                <p>Tu cuenta ha sido creada exitosamente.</p>
+                <p>Tu cuenta ha sido creada exitosamente tras la aprobación de tu cotización.</p>
                 <p><strong>Email:</strong> {email}</p>
                 <p><strong>Contraseña temporal:</strong> {tempPassword}</p>
-                <p>Por favor, cambia tu contraseña después del primer inicio de sesión.</p>
+                <p><strong>Importante:</strong> Por favor, cambia tu contraseña después del primer inicio de sesión por seguridad.</p>
+                <br>
+                <p>Ahora puedes:</p>
+                <ul>
+                    <li>Acceder a tu cuenta en nuestro portal</li>
+                    <li>Ver el historial de tus cotizaciones</li>
+                    <li>Solicitar nuevas cotizaciones</li>
+                    <li>Dejar reseñas de productos</li>
+                </ul>
+                <br>
+                <p><a href='https://localhost:4200/login'>Iniciar Sesión</a></p>
                 <br>
                 <p>Saludos cordiales,<br>
                 El equipo de AGROPURE</p>
@@ -98,7 +133,6 @@ namespace AGROPURE.Services
             }
             catch (Exception ex)
             {
-                // Log error - no lanzar excepción para no interrumpir el flujo principal
                 Console.WriteLine($"Error enviando email a {toEmail}: {ex.Message}");
                 throw;
             }

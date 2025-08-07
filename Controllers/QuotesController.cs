@@ -12,10 +12,52 @@ namespace AGROPURE.Controllers
     public class QuotesController : ControllerBase
     {
         private readonly QuoteService _quoteService;
+        private readonly EmailService _emailService;
 
-        public QuotesController(QuoteService quoteService)
+        public QuotesController(QuoteService quoteService, EmailService emailService)
         {
             _quoteService = quoteService;
+            _emailService = emailService;
+        }
+
+        [HttpPost("public")]
+        [AllowAnonymous] // Permitir cotizaciones sin registro
+        public async Task<ActionResult<QuoteDto>> CreatePublicQuote([FromBody] CreatePublicQuoteDto createDto)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    var errors = ModelState
+                        .Where(x => x.Value.Errors.Count > 0)
+                        .Select(x => new { field = x.Key, errors = x.Value.Errors.Select(e => e.ErrorMessage) })
+                        .ToArray();
+
+                    return BadRequest(new { message = "Datos de cotización inválidos", errors });
+                }
+
+                var quote = await _quoteService.CreatePublicQuoteAsync(createDto);
+
+                // Enviar notificación al administrador
+                try
+                {
+                    await _emailService.SendQuoteNotificationToAdminAsync(quote);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error enviando email: {ex.Message}");
+                }
+
+                return CreatedAtAction(nameof(GetQuote), new { id = quote.Id }, quote);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message, details = ex.InnerException?.Message });
+            }
         }
 
         [HttpGet]
@@ -39,7 +81,6 @@ namespace AGROPURE.Controllers
         {
             try
             {
-                // Verificar que el usuario solo pueda ver sus propias cotizaciones (a menos que sea admin)
                 var currentUserId = JwtHelper.GetUserIdFromToken(User);
                 var userRole = User.FindFirst("Role")?.Value;
 
@@ -69,7 +110,6 @@ namespace AGROPURE.Controllers
                     return NotFound(new { message = "Cotización no encontrada" });
                 }
 
-                // Verificar permisos
                 var currentUserId = JwtHelper.GetUserIdFromToken(User);
                 var userRole = User.FindFirst("Role")?.Value;
 
@@ -92,15 +132,6 @@ namespace AGROPURE.Controllers
         {
             try
             {
-
-                // DEBUG: Ver qué datos llegan
-                Console.WriteLine($"=== QUOTE DEBUG ===");
-                Console.WriteLine($"ProductId: {createDto?.ProductId}");
-                Console.WriteLine($"Quantity: {createDto?.Quantity}");
-                Console.WriteLine($"CustomerNotes: {createDto?.Notes}");
-                Console.WriteLine($"ModelState.IsValid: {ModelState.IsValid}");
-
-                // Validar modelo
                 if (!ModelState.IsValid)
                 {
                     var errors = ModelState
@@ -165,6 +196,25 @@ namespace AGROPURE.Controllers
                 }
 
                 return Ok(new { message = "Cotización eliminada correctamente" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("{id}/approve-and-create-user")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult> ApproveAndCreateUser(int id)
+        {
+            try
+            {
+                await _quoteService.ApproveQuoteAndCreateUserAsync(id);
+                return Ok(new { message = "Cotización aprobada y usuario creado" });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
             }
             catch (Exception ex)
             {

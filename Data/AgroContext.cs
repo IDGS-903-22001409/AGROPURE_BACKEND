@@ -18,6 +18,7 @@ namespace AGROPURE.Data
         public DbSet<Sale> Sales { get; set; }
         public DbSet<Purchase> Purchases { get; set; }
         public DbSet<Review> Reviews { get; set; }
+        public DbSet<ProductFaq> ProductFaqs { get; set; } // NUEVO
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -50,7 +51,7 @@ namespace AGROPURE.Data
                 entity.HasOne(e => e.Supplier)
                       .WithMany(s => s.Materials)
                       .HasForeignKey(e => e.SupplierId)
-                      .OnDelete(DeleteBehavior.Restrict); 
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // ProductMaterial (BOM) configurations
@@ -61,27 +62,44 @@ namespace AGROPURE.Data
                 entity.HasOne(e => e.Product)
                       .WithMany(p => p.Materials)
                       .HasForeignKey(e => e.ProductId)
-                      .OnDelete(DeleteBehavior.Cascade); 
+                      .OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(e => e.Material)
                       .WithMany(m => m.ProductMaterials)
                       .HasForeignKey(e => e.MaterialId)
                       .OnDelete(DeleteBehavior.Restrict);
             });
 
-            // Quote configurations
+            // Quote configurations - ACTUALIZADO
             modelBuilder.Entity<Quote>(entity =>
             {
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.UnitPrice).HasColumnType("decimal(18,2)");
                 entity.Property(e => e.TotalCost).HasColumnType("decimal(18,2)");
+                entity.Property(e => e.CustomerCompany).HasMaxLength(200); // NUEVO
+                entity.Property(e => e.IsPublicQuote).HasDefaultValue(false); // NUEVO
+
                 entity.HasOne(e => e.User)
                       .WithMany(u => u.Quotes)
                       .HasForeignKey(e => e.UserId)
-                      .OnDelete(DeleteBehavior.Restrict); 
+                      .OnDelete(DeleteBehavior.Restrict)
+                      .IsRequired(false); // ACTUALIZADO: Permitir null para cotizaciones públicas
+
                 entity.HasOne(e => e.Product)
                       .WithMany(p => p.Quotes)
                       .HasForeignKey(e => e.ProductId)
-                      .OnDelete(DeleteBehavior.Restrict); 
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ProductFaq configurations - NUEVO
+            modelBuilder.Entity<ProductFaq>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Question).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.Answer).IsRequired().HasMaxLength(2000);
+                entity.HasOne(e => e.Product)
+                      .WithMany(p => p.Faqs)
+                      .HasForeignKey(e => e.ProductId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             // Sale configurations
@@ -93,7 +111,7 @@ namespace AGROPURE.Data
                 entity.HasOne(e => e.User)
                       .WithMany(u => u.Sales)
                       .HasForeignKey(e => e.UserId)
-                      .OnDelete(DeleteBehavior.Restrict); // 🔥 CORREGIDO: Sin cascada
+                      .OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(e => e.Product)
                       .WithMany()
                       .HasForeignKey(e => e.ProductId)
@@ -102,10 +120,10 @@ namespace AGROPURE.Data
                       .WithMany()
                       .HasForeignKey(e => e.QuoteId)
                       .IsRequired(false)
-                      .OnDelete(DeleteBehavior.SetNull); 
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
-            // Purchase configurations -
+            // Purchase configurations
             modelBuilder.Entity<Purchase>(entity =>
             {
                 entity.HasKey(e => e.Id);
@@ -131,11 +149,11 @@ namespace AGROPURE.Data
                 entity.HasOne(e => e.User)
                       .WithMany(u => u.Reviews)
                       .HasForeignKey(e => e.UserId)
-                      .OnDelete(DeleteBehavior.Restrict); 
+                      .OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(e => e.Product)
                       .WithMany(p => p.Reviews)
                       .HasForeignKey(e => e.ProductId)
-                      .OnDelete(DeleteBehavior.Restrict); 
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // Supplier configurations

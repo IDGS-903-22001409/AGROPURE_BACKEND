@@ -4,6 +4,7 @@ using AGROPURE.Data;
 using AGROPURE.Models.DTOs;
 using AGROPURE.Models.Entities;
 using AutoMapper;
+using AGROPURE.Helpers;
 
 namespace AGROPURE.Services
 {
@@ -22,6 +23,114 @@ namespace AGROPURE.Services
             _emailService = emailService;
         }
 
+        public async Task<QuoteDto> CreatePublicQuoteAsync(CreatePublicQuoteDto createDto)
+        {
+            // Verificar que el producto existe
+            var product = await _context.Products.FindAsync(createDto.ProductId);
+            if (product == null || !product.IsActive)
+            {
+                throw new KeyNotFoundException("Producto no encontrado");
+            }
+
+            // Calcular precios usando el servicio de costeo
+            var costCalculation = await _costingService.CalculateProductCostAsync(createDto.ProductId, createDto.Quantity);
+
+            var quote = new Quote
+            {
+                UserId = null, // Cotización pública sin usuario
+                ProductId = createDto.ProductId,
+                CustomerName = createDto.CustomerName,
+                CustomerEmail = createDto.CustomerEmail,
+                CustomerPhone = createDto.CustomerPhone,
+                CustomerAddress = createDto.CustomerAddress,
+                CustomerCompany = createDto.CustomerCompany,
+                Quantity = createDto.Quantity,
+                UnitPrice = costCalculation.UnitPrice,
+                TotalCost = costCalculation.TotalCost,
+                Notes = createDto.Notes,
+                RequestDate = DateTime.UtcNow,
+                ExpiryDate = DateTime.UtcNow.AddDays(30),
+                Status = QuoteStatus.Pending,
+                IsPublicQuote = true
+            };
+
+            _context.Quotes.Add(quote);
+            await _context.SaveChangesAsync();
+
+            return await GetQuoteByIdAsync(quote.Id) ?? throw new InvalidOperationException("Error al crear la cotización");
+        }
+
+        public async Task ApproveQuoteAndCreateUserAsync(int quoteId)
+        {
+            var quote = await _context.Quotes
+                .Include(q => q.Product)
+                .FirstOrDefaultAsync(q => q.Id == quoteId);
+
+            if (quote == null)
+            {
+                throw new KeyNotFoundException("Cotización no encontrada");
+            }
+
+            // Verificar si ya existe un usuario con ese email
+            var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == quote.CustomerEmail);
+
+            if (existingUser == null)
+            {
+                // Crear nuevo usuario
+                var tempPassword = GenerateRandomPassword();
+                var nameParts = quote.CustomerName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var newUser = new User
+                {
+                    FirstName = nameParts.FirstOrDefault() ?? quote.CustomerName,
+                    LastName = nameParts.Length > 1 ? string.Join(" ", nameParts.Skip(1)) : "",
+                    Email = quote.CustomerEmail,
+                    PasswordHash = PasswordHelper.HashPassword(tempPassword),
+                    Phone = quote.CustomerPhone,
+                    Company = quote.CustomerCompany,
+                    Address = quote.CustomerAddress,
+                    Role = UserRole.Customer,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.Users.Add(newUser);
+                await _context.SaveChangesAsync();
+
+                // Actualizar la cotización con el nuevo usuario
+                quote.UserId = newUser.Id;
+                quote.Status = QuoteStatus.Approved;
+                quote.ResponseDate = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                // Enviar email de bienvenida con credenciales
+                try
+                {
+                    await _emailService.SendWelcomeEmailAsync(newUser.Email, quote.CustomerName, tempPassword);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error enviando email de bienvenida: {ex.Message}");
+                }
+            }
+            else
+            {
+                // Usuario ya existe, solo aprobar cotización
+                quote.UserId = existingUser.Id;
+                quote.Status = QuoteStatus.Approved;
+                quote.ResponseDate = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        private string GenerateRandomPassword()
+        {
+            const string chars = "ABCDEFGHJKLMNOPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789";
+            var random = new Random();
+            return new string(Enumerable.Repeat(chars, 8)
+                .Select(s => s[random.Next(s.Length)]).ToArray());
+        }
+
         public async Task<List<QuoteDto>> GetAllQuotesAsync()
         {
             var quotes = await _context.Quotes
@@ -30,7 +139,29 @@ namespace AGROPURE.Services
                 .OrderByDescending(q => q.RequestDate)
                 .ToListAsync();
 
-            return _mapper.Map<List<QuoteDto>>(quotes);
+            return quotes.Select(q => new QuoteDto
+            {
+                Id = q.Id,
+                UserId = q.UserId,
+                ProductId = q.ProductId,
+                CustomerName = q.CustomerName,
+                CustomerEmail = q.CustomerEmail,
+                CustomerPhone = q.CustomerPhone,
+                CustomerAddress = q.CustomerAddress,
+                CustomerCompany = q.CustomerCompany,
+                Quantity = q.Quantity,
+                UnitPrice = q.UnitPrice,
+                TotalCost = q.TotalCost,
+                Status = q.Status,
+                Notes = q.Notes,
+                AdminNotes = q.AdminNotes,
+                RequestDate = q.RequestDate,
+                ResponseDate = q.ResponseDate,
+                ExpiryDate = q.ExpiryDate,
+                IsPublicQuote = q.IsPublicQuote,
+                ProductName = q.Product.Name,
+                UserFullName = q.User != null ? $"{q.User.FirstName} {q.User.LastName}" : null
+            }).ToList();
         }
 
         public async Task<List<QuoteDto>> GetQuotesByUserAsync(int userId)
@@ -72,7 +203,8 @@ namespace AGROPURE.Services
             quote.UnitPrice = costCalculation.UnitPrice;
             quote.TotalCost = costCalculation.TotalCost;
             quote.RequestDate = DateTime.UtcNow;
-            quote.ExpiryDate = DateTime.UtcNow.AddDays(30); // Válida por 30 días
+            quote.ExpiryDate = DateTime.UtcNow.AddDays(30);
+            quote.IsPublicQuote = false;
 
             _context.Quotes.Add(quote);
             await _context.SaveChangesAsync();
@@ -84,7 +216,6 @@ namespace AGROPURE.Services
             }
             catch (Exception ex)
             {
-                // Log error pero no fallar la operación
                 Console.WriteLine($"Error enviando email: {ex.Message}");
             }
 
