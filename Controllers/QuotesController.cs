@@ -13,11 +13,13 @@ namespace AGROPURE.Controllers
     {
         private readonly QuoteService _quoteService;
         private readonly EmailService _emailService;
+        private readonly ILogger<QuotesController> _logger;
 
-        public QuotesController(QuoteService quoteService, EmailService emailService)
+        public QuotesController(QuoteService quoteService, EmailService emailService, ILogger<QuotesController> logger)
         {
             _quoteService = quoteService;
             _emailService = emailService;
+            _logger = logger;
         }
 
         [HttpPost("public")]
@@ -81,34 +83,34 @@ namespace AGROPURE.Controllers
         {
             try
             {
+                _logger.LogInformation("=== GET USER QUOTES DEBUG ===");
+                _logger.LogInformation("Requested userId: {UserId}", userId);
+
                 var currentUserId = JwtHelper.GetUserIdFromToken(User);
                 var userRole = User.FindFirst("Role")?.Value;
 
-                Console.WriteLine($"=== GET USER QUOTES DEBUG ===");
-                Console.WriteLine($"Requested userId: {userId}");
-                Console.WriteLine($"Current userId from token: {currentUserId}");
-                Console.WriteLine($"User role: {userRole}");
+                _logger.LogInformation("Current userId from token: {CurrentUserId}", currentUserId);
+                _logger.LogInformation("User role: {UserRole}", userRole);
 
                 // Verificar permisos
                 if (userRole != "Admin" && currentUserId != userId)
                 {
-                    Console.WriteLine("Access denied - user can only see own quotes");
+                    _logger.LogWarning("Access denied - user can only see own quotes");
                     return Forbid();
                 }
 
                 // Log antes de llamar al service
-                Console.WriteLine($"Calling QuoteService.GetQuotesByUserAsync for userId: {userId}");
+                _logger.LogInformation("Calling QuoteService.GetQuotesByUserAsync for userId: {UserId}", userId);
 
                 var quotes = await _quoteService.GetQuotesByUserAsync(userId);
 
-                Console.WriteLine($"Quotes returned: {quotes?.Count ?? 0}");
+                _logger.LogInformation("Quotes returned: {Count}", quotes?.Count ?? 0);
 
                 return Ok(quotes);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR in GetUserQuotes: {ex.Message}");
-                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                _logger.LogError(ex, "ERROR in GetUserQuotes: {Message}", ex.Message);
                 return BadRequest(new { message = ex.Message, details = ex.InnerException?.Message });
             }
         }
@@ -235,6 +237,18 @@ namespace AGROPURE.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        // NUEVO: Método explícito para manejar OPTIONS (preflight CORS)
+        [HttpOptions]
+        [HttpOptions("user/{userId}")]
+        [HttpOptions("{id}")]
+        [HttpOptions("public")]
+        [HttpOptions("{id}/status")]
+        [HttpOptions("{id}/approve-and-create-user")]
+        public IActionResult HandleOptions()
+        {
+            return Ok();
         }
     }
 }

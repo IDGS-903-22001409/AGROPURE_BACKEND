@@ -19,6 +19,18 @@ builder.Services.AddDbContext<AgroContext>(options =>
 // AutoMapper
 builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 
+// CORS - CORREGIDO: Mover antes de Authentication
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAngularApp", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200", "https://localhost:4200")
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
+
 // Authentication & JWT
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["Secret"];
@@ -38,6 +50,20 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = false,
         ClockSkew = TimeSpan.Zero
     };
+
+    // NUEVO: Configurar eventos para CORS con JWT
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var token = context.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
+            if (!string.IsNullOrEmpty(token))
+            {
+                context.Token = token;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 
 // Services
@@ -49,18 +75,6 @@ builder.Services.AddScoped<SaleService>();
 builder.Services.AddScoped<CostingService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<ReviewService>();
-
-// CORS
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAngularApp", policy =>
-    {
-        policy.WithOrigins("http://localhost:4200", "https://localhost:4200")
-              .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials();
-    });
-});
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
