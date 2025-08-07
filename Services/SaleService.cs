@@ -116,7 +116,7 @@ namespace AGROPURE.Services
 
             var sale = new Sale
             {
-                UserId = quote.UserId,
+                UserId = (int)quote.UserId,
                 ProductId = quote.ProductId,
                 QuoteId = quote.Id,
                 OrderNumber = GenerateOrderNumber(),

@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
+using AGROPURE.Data; 
+using AGROPURE.Models.Entities;
 
 namespace AGROPURE.Controllers
 {
@@ -13,11 +15,13 @@ namespace AGROPURE.Controllers
     {
         private readonly ProductService _productService;
         private readonly CostingService _costingService;
+        private readonly AgroContext _context; 
 
-        public ProductsController(ProductService productService, CostingService costingService)
+        public ProductsController(ProductService productService, CostingService costingService, AgroContext context) 
         {
             _productService = productService;
             _costingService = costingService;
+            _context = context;
         }
 
         [HttpPost("{id}/faqs")]
@@ -176,7 +180,6 @@ namespace AGROPURE.Controllers
             }
         }
 
-        // NUEVO: Método para calcular precios con descuentos
         [HttpPost("calculate-price")]
         public async Task<ActionResult<PriceCalculationDto>> CalculatePrice([FromBody] CalculatePriceDto request)
         {
@@ -206,7 +209,8 @@ namespace AGROPURE.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
-    }    
+    }
+
     public class CalculatePriceDto
     {
         [Required]
