@@ -84,17 +84,32 @@ namespace AGROPURE.Controllers
                 var currentUserId = JwtHelper.GetUserIdFromToken(User);
                 var userRole = User.FindFirst("Role")?.Value;
 
+                Console.WriteLine($"=== GET USER QUOTES DEBUG ===");
+                Console.WriteLine($"Requested userId: {userId}");
+                Console.WriteLine($"Current userId from token: {currentUserId}");
+                Console.WriteLine($"User role: {userRole}");
+
+                // Verificar permisos
                 if (userRole != "Admin" && currentUserId != userId)
                 {
+                    Console.WriteLine("Access denied - user can only see own quotes");
                     return Forbid();
                 }
 
+                // Log antes de llamar al service
+                Console.WriteLine($"Calling QuoteService.GetQuotesByUserAsync for userId: {userId}");
+
                 var quotes = await _quoteService.GetQuotesByUserAsync(userId);
+
+                Console.WriteLine($"Quotes returned: {quotes?.Count ?? 0}");
+
                 return Ok(quotes);
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                Console.WriteLine($"ERROR in GetUserQuotes: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                return BadRequest(new { message = ex.Message, details = ex.InnerException?.Message });
             }
         }
 

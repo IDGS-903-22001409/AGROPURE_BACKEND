@@ -18,7 +18,7 @@ namespace AGROPURE.Data
         public DbSet<Sale> Sales { get; set; }
         public DbSet<Purchase> Purchases { get; set; }
         public DbSet<Review> Reviews { get; set; }
-        public DbSet<ProductFaq> ProductFaqs { get; set; } // NUEVO
+        public DbSet<ProductFaq> ProductFaqs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -69,20 +69,20 @@ namespace AGROPURE.Data
                       .OnDelete(DeleteBehavior.Restrict);
             });
 
-            // Quote configurations - ACTUALIZADO
+            // Quote configurations - ACTUALIZADO CON NUEVAS COLUMNAS
             modelBuilder.Entity<Quote>(entity =>
             {
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.UnitPrice).HasColumnType("decimal(18,2)");
                 entity.Property(e => e.TotalCost).HasColumnType("decimal(18,2)");
-                entity.Property(e => e.CustomerCompany).HasMaxLength(200); // NUEVO
+                entity.Property(e => e.CustomerCompany).HasMaxLength(200).IsRequired(false); // NUEVO
                 entity.Property(e => e.IsPublicQuote).HasDefaultValue(false); // NUEVO
 
                 entity.HasOne(e => e.User)
                       .WithMany(u => u.Quotes)
                       .HasForeignKey(e => e.UserId)
                       .OnDelete(DeleteBehavior.Restrict)
-                      .IsRequired(false); // ACTUALIZADO: Permitir null para cotizaciones públicas
+                      .IsRequired(false); // Permitir null para cotizaciones públicas
 
                 entity.HasOne(e => e.Product)
                       .WithMany(p => p.Quotes)
@@ -90,7 +90,7 @@ namespace AGROPURE.Data
                       .OnDelete(DeleteBehavior.Restrict);
             });
 
-            // ProductFaq configurations - NUEVO
+            // ProductFaq configurations
             modelBuilder.Entity<ProductFaq>(entity =>
             {
                 entity.HasKey(e => e.Id);
@@ -162,6 +162,17 @@ namespace AGROPURE.Data
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
             });
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            if (!optionsBuilder.IsConfigured)
+            {
+                // Configurar logging para debug
+                optionsBuilder.LogTo(Console.WriteLine, LogLevel.Information);
+                optionsBuilder.EnableSensitiveDataLogging();
+                optionsBuilder.EnableDetailedErrors();
+            }
         }
     }
 }

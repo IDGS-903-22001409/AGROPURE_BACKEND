@@ -59,6 +59,11 @@ namespace AGROPURE.Models.DTOs
         public int ProductId { get; set; }
 
         [Required]
+        [Range(1, int.MaxValue)]
+        public int Quantity { get; set; }
+
+        public string? Notes { get; set; }
+        
         public string CustomerName { get; set; } = string.Empty;
 
         [Required]
@@ -67,12 +72,6 @@ namespace AGROPURE.Models.DTOs
 
         public string? CustomerPhone { get; set; }
         public string? CustomerAddress { get; set; }
-
-        [Required]
-        [Range(1, int.MaxValue)]
-        public int Quantity { get; set; }
-
-        public string? Notes { get; set; }
     }
 
     public class UpdateQuoteStatusDto

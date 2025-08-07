@@ -49,18 +49,29 @@ namespace AGROPURE.Controllers
                     })
                     .ToListAsync();
 
-                var monthlyQuoteStats = await _context.Quotes
+                // CORREGIDO: Obtener los datos primero, luego formatear
+                var monthlyQuoteData = await _context.Quotes
                     .Where(q => q.RequestDate >= DateTime.Now.AddDays(-180)) // Últimos 6 meses
                     .GroupBy(q => new { q.RequestDate.Year, q.RequestDate.Month })
-                    .Select(g => new MonthlyStatDto
+                    .Select(g => new
                     {
-                        Month = $"{g.Key.Year}-{g.Key.Month:00}",
+                        Year = g.Key.Year,
+                        Month = g.Key.Month,
                         Count = g.Count(),
                         Value = g.Sum(q => q.TotalCost)
                     })
-                    .OrderBy(s => s.Month)
+                    .OrderBy(s => s.Year)
+                    .ThenBy(s => s.Month)
                     .ToListAsync();
-                
+
+                // Formatear después de obtener los datos
+                var monthlyQuoteStats = monthlyQuoteData.Select(item => new MonthlyStatDto
+                {
+                    Month = $"{item.Year}-{item.Month:00}",
+                    Count = item.Count,
+                    Value = item.Value
+                }).ToList();
+
                 var topProducts = await _context.Quotes
                     .Include(q => q.Product)
                     .Where(q => q.RequestDate >= DateTime.Now.AddDays(-90)) // Últimos 3 meses
@@ -100,26 +111,36 @@ namespace AGROPURE.Controllers
         {
             try
             {
+                // CORREGIDO: Mismo patrón
                 var salesData = await _context.Sales
                     .Where(s => s.SaleDate >= DateTime.Now.AddDays(-365)) // Último año
                     .GroupBy(s => new { s.SaleDate.Year, s.SaleDate.Month })
-                    .Select(g => new MonthlyStatDto
+                    .Select(g => new
                     {
-                        Month = $"{g.Key.Year}-{g.Key.Month:00}",
+                        Year = g.Key.Year,
+                        Month = g.Key.Month,
                         Count = g.Count(),
                         Value = g.Sum(s => s.TotalAmount)
                     })
-                    .OrderBy(s => s.Month)
+                    .OrderBy(s => s.Year)
+                    .ThenBy(s => s.Month)
                     .ToListAsync();
 
-                return Ok(salesData);
+                var formattedSalesData = salesData.Select(item => new MonthlyStatDto
+                {
+                    Month = $"{item.Year}-{item.Month:00}",
+                    Count = item.Count,
+                    Value = item.Value
+                }).ToList();
+
+                return Ok(formattedSalesData);
             }
             catch (Exception ex)
             {
                 return BadRequest(new { message = ex.Message });
             }
         }
-        
+
         [HttpGet("user-stats")]
         public async Task<ActionResult<UserStatsDto>> GetUserStats()
         {
@@ -147,7 +168,7 @@ namespace AGROPURE.Controllers
             }
         }
     }
-    
+
     public class DashboardStatsDto
     {
         public int TotalUsers { get; set; }
@@ -158,7 +179,7 @@ namespace AGROPURE.Controllers
         public decimal MonthlyRevenue { get; set; }
         public List<RecentQuoteDto> RecentQuotes { get; set; } = new();
         public List<MonthlyStatDto> MonthlyQuoteStats { get; set; } = new();
-        public List<ProductStatDto> TopProducts { get; set; } = new(); // NUEVO
+        public List<ProductStatDto> TopProducts { get; set; } = new();
     }
 
     public class RecentQuoteDto
@@ -166,7 +187,7 @@ namespace AGROPURE.Controllers
         public int Id { get; set; }
         public string CustomerName { get; set; } = string.Empty;
         public string ProductName { get; set; } = string.Empty;
-        public int Quantity { get; set; } // NUEVO
+        public int Quantity { get; set; }
         public decimal TotalCost { get; set; }
         public string Status { get; set; } = string.Empty;
         public DateTime RequestDate { get; set; }
@@ -178,7 +199,7 @@ namespace AGROPURE.Controllers
         public int Count { get; set; }
         public decimal Value { get; set; }
     }
-    
+
     public class ProductStatDto
     {
         public string ProductName { get; set; } = string.Empty;
