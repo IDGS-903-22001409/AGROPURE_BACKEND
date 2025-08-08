@@ -81,8 +81,7 @@ namespace AGROPURE.Services
                     throw new InvalidOperationException("Error al recuperar la cotización creada");
                 }
 
-                // IMPORTANTE: Enviar emails de forma asíncrona SIN ESPERAR
-                // Esto evita que se quede cargando en el frontend
+                // Enviar emails de forma asíncrona SIN ESPERAR
                 SendEmailsInBackground(createdQuote);
 
                 return createdQuote;
@@ -161,33 +160,6 @@ namespace AGROPURE.Services
             }
         }
 
-        // MÉTODO PRIVADO para enviar emails en background sin bloquear
-        private void SendEmailsInBackground(QuoteDto quote)
-        {
-            // Usar Task.Run para ejecutar en background thread
-            Task.Run(async () =>
-            {
-                try
-                {
-                    _logger.LogInformation("Enviando emails en background para cotización #{QuoteId}", quote.Id);
-
-                    // Enviar email al admin
-                    await _emailService.SendQuoteNotificationToAdminAsync(quote);
-                    _logger.LogInformation("Email al admin enviado para cotización #{QuoteId}", quote.Id);
-
-                    // Enviar confirmación al cliente
-                    await _emailService.SendQuoteRequestNotificationAsync(quote.CustomerEmail, quote.Id);
-                    _logger.LogInformation("Email de confirmación enviado para cotización #{QuoteId}", quote.Id);
-                }
-                catch (Exception ex)
-                {
-                    // LOG el error pero NO lanzar excepción
-                    _logger.LogError(ex, "Error enviando emails en background para cotización #{QuoteId}: {ErrorMessage}",
-                        quote.Id, ex.Message);
-                }
-            });
-        }
-
         public async Task<List<QuoteDto>> GetAllQuotesAsync()
         {
             try
@@ -248,7 +220,6 @@ namespace AGROPURE.Services
 
                 _logger.LogInformation("Se encontraron {Count} cotizaciones para usuario {UserId}", quotes.Count, userId);
 
-                // Mapeo manual para evitar problemas con AutoMapper
                 var quoteDtos = quotes.Select(q => new QuoteDto
                 {
                     Id = q.Id,
@@ -325,13 +296,27 @@ namespace AGROPURE.Services
                     throw new KeyNotFoundException("Cotización no encontrada");
                 }
 
+                // Validar transición de estado
+                if (!IsValidStatusTransition(quote.Status, updateDto.Status))
+                {
+                    throw new InvalidOperationException($"No se puede cambiar el estado de {quote.Status} a {updateDto.Status}");
+                }
+
+                // Verificar si la cotización ha expirado
+                if (quote.ExpiryDate.HasValue && quote.ExpiryDate.Value < DateTime.UtcNow && updateDto.Status == QuoteStatus.Approved)
+                {
+                    throw new InvalidOperationException("No se puede aprobar una cotización expirada");
+                }
+
+                var previousStatus = quote.Status;
                 quote.Status = updateDto.Status;
                 quote.AdminNotes = updateDto.AdminNotes;
                 quote.ResponseDate = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation("Estado de cotización {QuoteId} actualizado exitosamente", id);
+                _logger.LogInformation("Estado de cotización {QuoteId} actualizado de {PreviousStatus} a {NewStatus}",
+                    id, previousStatus, updateDto.Status);
 
                 // Enviar notificación por email en background
                 Task.Run(async () =>
@@ -369,6 +354,12 @@ namespace AGROPURE.Services
                     return false;
                 }
 
+                // Solo permitir eliminar cotizaciones pendientes o rechazadas
+                if (quote.Status == QuoteStatus.Approved || quote.Status == QuoteStatus.Completed)
+                {
+                    throw new InvalidOperationException("No se pueden eliminar cotizaciones aprobadas o completadas");
+                }
+
                 _context.Quotes.Remove(quote);
                 await _context.SaveChangesAsync();
 
@@ -384,6 +375,7 @@ namespace AGROPURE.Services
 
         public async Task ApproveQuoteAndCreateUserAsync(int quoteId)
         {
+            using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
                 _logger.LogInformation("Aprobando cotización {QuoteId} y creando usuario", quoteId);
@@ -395,6 +387,17 @@ namespace AGROPURE.Services
                 if (quote == null)
                 {
                     throw new KeyNotFoundException("Cotización no encontrada");
+                }
+
+                // Validar que la cotización puede ser aprobada
+                if (quote.Status != QuoteStatus.Pending)
+                {
+                    throw new InvalidOperationException("Solo se pueden aprobar cotizaciones pendientes");
+                }
+
+                if (!quote.IsPublicQuote)
+                {
+                    throw new InvalidOperationException("Solo se puede crear usuario para cotizaciones públicas");
                 }
 
                 // Verificar si ya existe un usuario con ese email
@@ -426,8 +429,10 @@ namespace AGROPURE.Services
                     quote.UserId = newUser.Id;
                     quote.Status = QuoteStatus.Approved;
                     quote.ResponseDate = DateTime.UtcNow;
+                    quote.AdminNotes = "Cotización aprobada y usuario creado automáticamente";
 
                     await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
 
                     _logger.LogInformation("Usuario creado y cotización {QuoteId} aprobada para {Email}", quoteId, quote.CustomerEmail);
 
@@ -451,16 +456,69 @@ namespace AGROPURE.Services
                     quote.UserId = existingUser.Id;
                     quote.Status = QuoteStatus.Approved;
                     quote.ResponseDate = DateTime.UtcNow;
+                    quote.AdminNotes = "Cotización aprobada - usuario ya existía";
                     await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
 
                     _logger.LogInformation("Cotización {QuoteId} aprobada para usuario existente {Email}", quoteId, quote.CustomerEmail);
+
+                    // Enviar notificación de aprobación
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _emailService.SendQuoteStatusUpdateAsync(quote.CustomerEmail, quote.Id, QuoteStatus.Approved);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error enviando notificación de aprobación para cotización #{QuoteId}", quoteId);
+                        }
+                    });
                 }
             }
             catch (Exception ex)
             {
+                await transaction.RollbackAsync();
                 _logger.LogError(ex, "Error aprobando cotización {QuoteId} y creando usuario", quoteId);
                 throw;
             }
+        }
+
+        // MÉTODO PRIVADO para enviar emails en background sin bloquear
+        private void SendEmailsInBackground(QuoteDto quote)
+        {
+            Task.Run(async () =>
+            {
+                try
+                {
+                    _logger.LogInformation("Enviando emails en background para cotización #{QuoteId}", quote.Id);
+
+                    // Enviar email al admin
+                    await _emailService.SendQuoteNotificationToAdminAsync(quote);
+                    _logger.LogInformation("Email al admin enviado para cotización #{QuoteId}", quote.Id);
+
+                    // Enviar confirmación al cliente
+                    await _emailService.SendQuoteRequestNotificationAsync(quote.CustomerEmail, quote.Id);
+                    _logger.LogInformation("Email de confirmación enviado para cotización #{QuoteId}", quote.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error enviando emails en background para cotización #{QuoteId}: {ErrorMessage}",
+                        quote.Id, ex.Message);
+                }
+            });
+        }
+
+        private bool IsValidStatusTransition(QuoteStatus currentStatus, QuoteStatus newStatus)
+        {
+            return currentStatus switch
+            {
+                QuoteStatus.Pending => newStatus is QuoteStatus.Approved or QuoteStatus.Rejected,
+                QuoteStatus.Approved => newStatus is QuoteStatus.Completed or QuoteStatus.Rejected,
+                QuoteStatus.Rejected => false, // No se puede cambiar desde rechazado
+                QuoteStatus.Completed => false, // No se puede cambiar desde completado
+                _ => false
+            };
         }
 
         private string GenerateRandomPassword()
@@ -470,5 +528,56 @@ namespace AGROPURE.Services
             return new string(Enumerable.Repeat(chars, 8)
                 .Select(s => s[random.Next(s.Length)]).ToArray());
         }
+
+        // Método para obtener estadísticas de cotizaciones
+        public async Task<QuoteStatsDto> GetQuoteStatsAsync()
+        {
+            try
+            {
+                var now = DateTime.UtcNow;
+                var thirtyDaysAgo = now.AddDays(-30);
+
+                var stats = new QuoteStatsDto
+                {
+                    TotalQuotes = await _context.Quotes.CountAsync(),
+                    PendingQuotes = await _context.Quotes.CountAsync(q => q.Status == QuoteStatus.Pending),
+                    ApprovedQuotes = await _context.Quotes.CountAsync(q => q.Status == QuoteStatus.Approved),
+                    RejectedQuotes = await _context.Quotes.CountAsync(q => q.Status == QuoteStatus.Rejected),
+                    CompletedQuotes = await _context.Quotes.CountAsync(q => q.Status == QuoteStatus.Completed),
+                    PublicQuotes = await _context.Quotes.CountAsync(q => q.IsPublicQuote),
+                    QuotesThisMonth = await _context.Quotes.CountAsync(q => q.RequestDate >= thirtyDaysAgo),
+                    TotalRevenue = await _context.Quotes
+                        .Where(q => q.Status == QuoteStatus.Approved || q.Status == QuoteStatus.Completed)
+                        .SumAsync(q => q.TotalCost),
+                    AverageQuoteValue = await _context.Quotes
+                        .Where(q => q.Status != QuoteStatus.Rejected)
+                        .AverageAsync(q => q.TotalCost),
+                    ExpiredQuotes = await _context.Quotes
+                        .CountAsync(q => q.ExpiryDate < now && q.Status == QuoteStatus.Pending)
+                };
+
+                return stats;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error obteniendo estadísticas de cotizaciones");
+                throw;
+            }
+        }
+    }
+
+    // DTO para estadísticas
+    public class QuoteStatsDto
+    {
+        public int TotalQuotes { get; set; }
+        public int PendingQuotes { get; set; }
+        public int ApprovedQuotes { get; set; }
+        public int RejectedQuotes { get; set; }
+        public int CompletedQuotes { get; set; }
+        public int PublicQuotes { get; set; }
+        public int QuotesThisMonth { get; set; }
+        public decimal TotalRevenue { get; set; }
+        public decimal AverageQuoteValue { get; set; }
+        public int ExpiredQuotes { get; set; }
     }
 }

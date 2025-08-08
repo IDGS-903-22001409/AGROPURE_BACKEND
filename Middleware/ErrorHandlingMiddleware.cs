@@ -22,12 +22,12 @@ namespace AGROPURE.Middleware
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An unhandled exception occurred");
+                _logger.LogError(ex, "An unhandled exception occurred: {Message}", ex.Message);
                 await HandleExceptionAsync(context, ex);
             }
         }
 
-        private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
+        private async Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
             context.Response.ContentType = "application/json";
 
@@ -41,6 +41,12 @@ namespace AGROPURE.Middleware
                     context.Response.StatusCode = (int)HttpStatusCode.NotFound;
                     break;
 
+                case InvalidOperationException:
+                    response.Message = exception.Message;
+                    response.StatusCode = (int)HttpStatusCode.BadRequest;
+                    context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                    break;
+
                 case UnauthorizedAccessException:
                     response.Message = "No autorizado";
                     response.StatusCode = (int)HttpStatusCode.Unauthorized;
@@ -48,7 +54,6 @@ namespace AGROPURE.Middleware
                     break;
 
                 case ArgumentException:
-                case InvalidOperationException:
                     response.Message = exception.Message;
                     response.StatusCode = (int)HttpStatusCode.BadRequest;
                     context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
@@ -58,6 +63,9 @@ namespace AGROPURE.Middleware
                     response.Message = "Ha ocurrido un error interno del servidor";
                     response.StatusCode = (int)HttpStatusCode.InternalServerError;
                     context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+
+                    // Log detallado para errores no controlados
+                    _logger.LogError(exception, "Unhandled exception occurred");
                     break;
             }
 
@@ -75,5 +83,6 @@ namespace AGROPURE.Middleware
         public string Message { get; set; } = string.Empty;
         public int StatusCode { get; set; }
         public string Details { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     }
 }
