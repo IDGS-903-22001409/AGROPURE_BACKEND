@@ -73,12 +73,4 @@ namespace AGROPURE.Models.DTOs
         public string? CustomerPhone { get; set; }
         public string? CustomerAddress { get; set; }
     }
-
-    public class UpdateQuoteStatusDto
-    {
-        [Required]
-        public QuoteStatus Status { get; set; }
-
-        public string? AdminNotes { get; set; }
-    }
 }
