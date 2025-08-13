@@ -47,7 +47,18 @@ namespace AGROPURE.Services
 
         public async Task<ProductDto> CreateProductAsync(CreateProductDto createDto)
         {
-            var product = _mapper.Map<Product>(createDto);
+            var product = new Product
+            {
+                Name = createDto.Name,
+                Description = createDto.Description,
+                DetailedDescription = createDto.DetailedDescription,
+                Category = createDto.Category,
+                ImageUrl = createDto.ImageUrl,
+                BasePrice = createDto.BasePrice,
+                TechnicalSpecs = createDto.TechnicalSpecs,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
             product.CreatedAt = DateTime.UtcNow;
 
             _context.Products.Add(product);
@@ -81,7 +92,14 @@ namespace AGROPURE.Services
                 throw new KeyNotFoundException("Producto no encontrado");
             }
 
-            _mapper.Map(updateDto, product);
+            product.Name = updateDto.Name;
+            product.Description = updateDto.Description;
+            product.DetailedDescription = updateDto.DetailedDescription;
+            product.Category = updateDto.Category;
+            product.ImageUrl = updateDto.ImageUrl;
+            product.BasePrice = updateDto.BasePrice;
+            product.TechnicalSpecs = updateDto.TechnicalSpecs;
+            product.UpdatedAt = DateTime.UtcNow;
             product.UpdatedAt = DateTime.UtcNow;
 
             // Actualizar materiales
